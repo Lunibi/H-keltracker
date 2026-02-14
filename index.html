@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧶 Häkel-Tracker Cloud</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        .animate-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .active-project-card { background: linear-gradient(145deg, #ffffff, #fff5f5); border: 2px solid #fecaca; }
+        .note-input { resize: none; overflow: hidden; min-height: 24px; }
+    </style>
+</head>
+<body class="bg-stone-50 text-stone-900 pb-24">
+
+    <div id="app">
+        <header class="bg-white border-b border-stone-200 sticky top-0 z-20 p-4 flex justify-between items-center shadow-sm">
+            <h1 class="text-xl font-bold flex items-center gap-2 text-rose-600">
+                <span>🧶</span> Häkel-Tracker
+            </h1>
+            <div id="connection-status" class="text-[10px] font-bold uppercase text-stone-400 flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-stone-300" id="status-dot"></span> Cloud-Sync
+            </div>
+        </header>
+
+        <main class="max-w-md mx-auto p-4">
+            <div id="view-projects" class="space-y-6">
+                <div id="active-focus-area" class="min-h-[100px]">
+                    <div class="text-center py-10 text-stone-400 font-bold">Lade Daten aus der Cloud...</div>
+                </div>
+                
+                <div class="flex items-center justify-between px-2">
+                    <h2 class="text-xs font-black text-stone-400 uppercase tracking-widest">Alle Projekte</h2>
+                    <button onclick="openProjectModal()" class="text-rose-600 font-bold text-sm flex items-center gap-1">
+                        <i data-lucide="plus" class="w-4 h-4"></i> Neu
+                    </button>
+                </div>
+                <div id="project-list-compact" class="space-y-2"></div>
+            </div>
+        </main>
+
+        <div id="modal-project" class="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+            <div class="bg-white w-full max-w-xs rounded-[2.5rem] p-8 shadow-2xl animate-in">
+                <h3 class="text-xl font-extrabold mb-6 text-center">Neues Projekt</h3>
+                <input type="text" id="project-name-input" onkeydown="if(event.key === 'Enter') submitNewProject()" placeholder="Name des Projekts..." class="w-full text-lg font-bold bg-stone-50 border-2 border-transparent focus:border-rose-300 rounded-2xl px-6 py-4 outline-none mb-6">
+                <button onclick="submitNewProject()" class="w-full bg-rose-500 text-white py-4 rounded-2xl font-bold shadow-lg shadow-rose-100 active:scale-95 transition-transform">Erstellen</button>
+                <button onclick="closeProjectModal()" class="w-full text-stone-400 py-2 text-sm font-bold mt-2">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DEINE SUPABASE DATEN ---
+        const SUPABASE_URL = 'https://ocerasjfvffomatxhkoz.supabase.co'; 
+        const SUPABASE_KEY = 'sb_publishable_esk_zjcs2rWt1Ch46IIg-w__J3ES_zh';
+        // ----------------------------
+
+        const { createClient } = supabase;
+        const _supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let projects = [];
+        let sessions = [];
+        let focusedProjectId = null;
+        let activeTimerProjectId = null;
+        let timerSeconds = 0;
+        let isTimerRunning = false;
+        let timerInterval = null;
+        let lastTickTimestamp = null;
+
+        async function init() {
+            await fetchAllData();
+            lucide.createIcons();
+        }
+
+        async function fetchAllData() {
+            const [projRes, sessRes] = await Promise.all([
+                _supabase.from('projects').select('*').order('created_at', { ascending: false }),
+                _supabase.from('sessions').select('*')
+            ]);
+
+            if (projRes.error) {
+                console.error("Fehler:", projRes.error);
+                document.getElementById('status-dot').className = "w-2 h-2 rounded-full bg-red-500";
+            } else {
+                projects = projRes.data;
+                sessions = sessRes.data || [];
+                if (projects.length > 0 && !focusedProjectId) focusedProjectId = projects[0].id;
+                document.getElementById('status-dot').className = "w-2 h-2 rounded-full bg-green-500";
+                renderProjects();
+            }
+        }
+
+        function formatTime(totalSeconds) {
+            const h = Math.floor(totalSeconds / 3600);
+            const m = Math.floor((totalSeconds % 3600) / 60);
+            const s = totalSeconds % 60;
+            return `${h}h ${m}m ${s}s`;
+        }
+
+        async function submitNewProject() {
+            const nameInput = document.getElementById('project-name-input');
+            const name = nameInput.value.trim();
+            if (!name) return;
+            const { data, error } = await _supabase.from('projects').insert([{ name, status: 'aktiv', note: '' }]).select();
+            if (!error && data) {
+                focusedProjectId = data[0].id;
+                nameInput.value = '';
+                closeProjectModal();
+                await fetchAllData();
+            }
+        }
+
+        async function updateNoteCloud(id, note) {
+            await _supabase.from('projects').update({ note }).eq('id', id);
+            projects = projects.map(p => p.id === id ? {...p, note} : p);
+        }
+
+        async function toggleStatusCloud(id, currentStatus) {
+            const newStatus = currentStatus === 'aktiv' ? 'abgeschlossen' : 'aktiv';
+            await _supabase.from('projects').update({ status: newStatus }).eq('id', id);
+            await fetchAllData();
+        }
+
+        async function deleteProjectCloud(id) {
+            if (!confirm("Projekt wirklich löschen?")) return;
+            await _supabase.from('projects').delete().eq('id', id);
+            if (focusedProjectId === id) focusedProjectId = null;
+            await fetchAllData();
+        }
+
+        function startTimer(id) {
+            activeTimerProjectId = id;
+            isTimerRunning = true;
+            lastTickTimestamp = Date.now();
+            if (!timerInterval) {
+                timerInterval = setInterval(() => {
+                    if (isTimerRunning) {
+                        const now = Date.now();
+                        timerSeconds += Math.round((now - lastTickTimestamp) / 1000);
+                        lastTickTimestamp = now;
+                        const display = document.getElementById(`focus-timer-display`);
+                        if (display) display.innerText = formatTime(timerSeconds);
+                    }
+                }, 1000);
+            }
+            renderProjects();
+        }
+
+        async function saveTimer() {
+            if (timerSeconds > 0) {
+                await _supabase.from('sessions').insert([{ project_id: activeTimerProjectId, seconds: timerSeconds }]);
+            }
+            clearInterval(timerInterval);
+            timerInterval = null;
+            activeTimerProjectId = null;
+            isTimerRunning = false;
+            timerSeconds = 0;
+            await fetchAllData();
+        }
+
+        function handleNoteKeydown(event, id) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                event.target.blur();
+                updateNoteCloud(id, event.target.value);
+            }
+        }
+
+        function autoResizeTextarea(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = textarea.scrollHeight + 'px';
+        }
+
+        function renderProjects() {
+            const activeArea = document.getElementById('active-focus-area');
+            const compactList = document.getElementById('project-list-compact');
+            activeArea.innerHTML = ''; compactList.innerHTML = '';
+
+            if (projects.length === 0) {
+                activeArea.innerHTML = `<div class="bg-white border-2 border-dashed border-stone-200 rounded-[2.5rem] p-10 text-center text-stone-400 font-bold">Keine Projekte in der Cloud.</div>`;
+                return;
+            }
+
+            const focusProject = projects.find(p => p.id === focusedProjectId) || projects[0];
+            focusedProjectId = focusProject.id;
+            const focusTotal = sessions.filter(s => s.project_id === focusProject.id).reduce((sum, s) => sum + s.seconds, 0);
+            const isCurrentlyTimer = activeTimerProjectId === focusProject.id;
+            
+            activeArea.innerHTML = `
+                <div class="active-project-card rounded-[2.5rem] p-8 shadow-xl shadow-rose-100 animate-in relative overflow-hidden">
+                    <div class="relative z-10">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h3 class="text-2xl font-black text-stone-900 leading-tight">${focusProject.name}</h3>
+                                <p class="text-[10px] font-black uppercase text-rose-400 tracking-widest mt-1">Cloud Fokus</p>
+                            </div>
+                            <button onclick="toggleStatusCloud('${focusProject.id}', '${focusProject.status}')" class="p-2 bg-white rounded-xl shadow-sm border border-rose-100">
+                                <i data-lucide="check-circle" class="w-5 h-5 ${focusProject.status === 'abgeschlossen' ? 'text-green-500' : 'text-stone-300'}"></i>
+                            </button>
+                        </div>
+
+                        <div class="mb-4">
+                             <div class="bg-stone-100/50 rounded-xl px-3 py-2 flex items-start gap-2 border border-stone-200/50 focus-within:border-rose-200 transition-all">
+                                <textarea
+                                    placeholder="Notiz hinzufügen..." 
+                                    class="bg-transparent text-xs font-semibold text-stone-600 outline-none w-full note-input py-0.5" 
+                                    oninput="autoResizeTextarea(this)"
+                                    onkeydown="handleNoteKeydown(event, '${focusProject.id}')"
+                                    onchange="updateNoteCloud('${focusProject.id}', this.value)">${focusProject.note || ''}</textarea>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-3 mb-6">
+                            <div class="bg-white/80 backdrop-blur px-4 py-2 rounded-2xl border border-rose-50">
+                                <p class="text-[9px] font-bold text-stone-400 uppercase tracking-tighter">Gesamtzeit</p>
+                                <p class="font-mono font-black text-stone-800">${formatTime(focusTotal)}</p>
+                            </div>
+                        </div>
+
+                        ${isCurrentlyTimer ? `
+                            <div class="bg-rose-500 rounded-3xl p-6 text-white text-center">
+                                <p id="focus-timer-display" class="text-3xl font-black font-mono mb-4">${formatTime(timerSeconds)}</p>
+                                <button onclick="saveTimer()" class="w-full bg-white text-rose-600 py-3 rounded-xl font-black">Session beenden</button>
+                            </div>
+                        ` : `
+                            <button onclick="startTimer('${focusProject.id}')" class="w-full bg-stone-900 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2">
+                                <i data-lucide="play" class="w-4 h-4"></i> Session starten
+                            </button>
+                        `}
+                    </div>
+                </div>
+            `;
+            
+            const tx = activeArea.querySelector('textarea');
+            if(tx) autoResizeTextarea(tx);
+
+            projects.forEach(p => {
+                if (p.id === focusedProjectId) return;
+                const projTotal = sessions.filter(s => s.project_id === p.id).reduce((sum, s) => sum + s.seconds, 0);
+                const item = document.createElement('div');
+                item.className = `flex items-center justify-between bg-white p-4 rounded-2xl border border-stone-100 ${p.status === 'abgeschlossen' ? 'opacity-50' : ''}`;
+                item.innerHTML = `
+                    <div onclick="focusedProjectId='${p.id}'; renderProjects();" class="flex-1 cursor-pointer">
+                        <h4 class="font-bold text-stone-800">${p.name}</h4>
+                        <p class="text-[10px] text-stone-400 font-mono">${formatTime(projTotal)}</p>
+                    </div>
+                    <button onclick="deleteProjectCloud('${p.id}')" class="p-2 text-stone-200"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                `;
+                compactList.appendChild(item);
+            });
+            lucide.createIcons();
+        }
+
+        function openProjectModal() { document.getElementById('modal-project').classList.remove('hidden'); }
+        function closeProjectModal() { document.getElementById('modal-project').classList.add('hidden'); }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
