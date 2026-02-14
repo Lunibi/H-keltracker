@@ -3,96 +3,209 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🧶 Häkel-Tracker Cloud</title>
+    <title>🧶 Häkel-Tracker Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
         body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
         .animate-in { animation: fadeIn 0.3s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .active-project-card { background: linear-gradient(145deg, #ffffff, #fff5f5); border: 2px solid #fecaca; }
-        .note-input { resize: none; overflow: hidden; min-height: 24px; }
+        
+        .active-project-card {
+            background: linear-gradient(145deg, #ffffff, #fff5f5);
+            border: 2px solid #fecaca;
+        }
+
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .note-input {
+            resize: none;
+            overflow: hidden;
+            min-height: 24px;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
     </style>
 </head>
 <body class="bg-stone-50 text-stone-900 pb-24">
 
     <div id="app">
+        <!-- Navigation Header -->
         <header class="bg-white border-b border-stone-200 sticky top-0 z-20 p-4 flex justify-between items-center shadow-sm">
             <h1 class="text-xl font-bold flex items-center gap-2 text-rose-600">
                 <span>🧶</span> Häkel-Tracker
             </h1>
-            <div id="connection-status" class="text-[10px] font-bold uppercase text-stone-400 flex items-center gap-1">
-                <span class="w-2 h-2 rounded-full bg-stone-300" id="status-dot"></span> Cloud-Sync
+            <div class="flex gap-2">
+                <button onclick="setView('projects')" id="btn-projects" class="p-3 rounded-xl transition bg-rose-100 text-rose-700">
+                    <i data-lucide="clock"></i>
+                </button>
+                <button onclick="setView('stats')" id="btn-stats" class="p-3 rounded-xl transition text-stone-400">
+                    <i data-lucide="bar-chart-2"></i>
+                </button>
             </div>
         </header>
 
         <main class="max-w-md mx-auto p-4">
+            <!-- Projekt Ansicht -->
             <div id="view-projects" class="space-y-6">
-                <div id="active-focus-area" class="min-h-[100px]">
-                    <div class="text-center py-10 text-stone-400 font-bold">Lade Daten aus der Cloud...</div>
-                </div>
                 
+                <!-- Aktives Fokus-Projekt -->
+                <div id="active-focus-area" class="min-h-[100px]">
+                    <!-- Dynamisch befüllt -->
+                </div>
+
                 <div class="flex items-center justify-between px-2">
                     <h2 class="text-xs font-black text-stone-400 uppercase tracking-widest">Alle Projekte</h2>
                     <button onclick="openProjectModal()" class="text-rose-600 font-bold text-sm flex items-center gap-1">
                         <i data-lucide="plus" class="w-4 h-4"></i> Neu
                     </button>
                 </div>
-                <div id="project-list-compact" class="space-y-2"></div>
+                
+                <div id="project-list-compact" class="space-y-2">
+                    <!-- Projektliste -->
+                </div>
+
+                <!-- Backup Bereich -->
+                <div class="mt-12 pt-8 border-t border-stone-200 space-y-4">
+                    <h3 class="text-xs font-black text-stone-400 uppercase tracking-widest px-2 text-center text-stone-400">Datensicherung</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="exportData()" class="flex items-center justify-center gap-2 bg-white border border-stone-200 py-3 rounded-xl text-stone-600 active:bg-stone-50 transition-all shadow-sm text-[10px] font-bold uppercase">
+                            <i data-lucide="download" class="w-4 h-4 text-rose-500"></i> Export
+                        </button>
+                        <button onclick="importData()" class="flex items-center justify-center gap-2 bg-white border border-stone-200 py-3 rounded-xl text-stone-600 active:bg-stone-50 transition-all shadow-sm text-[10px] font-bold uppercase">
+                            <i data-lucide="upload" class="w-4 h-4 text-rose-500"></i> Import
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Statistik Ansicht -->
+            <div id="view-stats" class="space-y-6 hidden animate-in">
+                <h2 class="text-xl font-bold px-2">Statistiken</h2>
+                <div class="bg-white p-6 rounded-[2rem] border border-stone-100 shadow-sm">
+                    <h3 class="text-xs font-black text-stone-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <i data-lucide="calendar" class="w-3 h-3 text-rose-400"></i> Letzte 7 Tage
+                    </h3>
+                    <div id="daily-stats" class="space-y-4"></div>
+                </div>
+                <div class="bg-rose-600 text-white p-8 rounded-[2rem] shadow-xl shadow-rose-100 text-center">
+                    <p class="text-rose-200 text-[10px] font-bold uppercase tracking-widest mb-2 text-rose-200">Gesamtzeit</p>
+                    <p id="total-time-display" class="text-4xl font-black">0h 0m 0s</p>
+                </div>
             </div>
         </main>
 
+        <!-- Modals -->
+        <!-- Zeit Modal -->
+        <div id="modal-manual-time" class="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+            <div class="bg-white w-full max-w-xs rounded-[2.5rem] p-8 shadow-2xl animate-in">
+                <h3 id="manual-modal-title" class="text-xl font-extrabold mb-2 text-center text-stone-900 text-stone-900">Zeit hinzufügen</h3>
+                <p id="manual-project-name" class="text-stone-400 text-[10px] text-center mb-6 uppercase font-black tracking-widest"></p>
+                <div class="grid grid-cols-3 gap-3 mb-8 text-center">
+                    <div>
+                        <input type="number" id="manual-h" placeholder="0" class="w-full text-center text-2xl font-black bg-stone-50 border-2 border-transparent focus:border-rose-300 focus:bg-white rounded-2xl py-3 outline-none transition-all">
+                        <label class="text-[10px] uppercase font-black text-stone-400 mt-2 block tracking-tighter text-stone-400">Std</label>
+                    </div>
+                    <div>
+                        <input type="number" id="manual-m" placeholder="0" class="w-full text-center text-2xl font-black bg-stone-50 border-2 border-transparent focus:border-rose-300 focus:bg-white rounded-2xl py-3 outline-none transition-all">
+                        <label class="text-[10px] uppercase font-black text-stone-400 mt-2 block tracking-tighter text-stone-400">Min</label>
+                    </div>
+                    <div>
+                        <input type="number" id="manual-s" placeholder="0" class="w-full text-center text-2xl font-black bg-stone-50 border-2 border-transparent focus:border-rose-300 focus:bg-white rounded-2xl py-3 outline-none transition-all">
+                        <label class="text-[10px] uppercase font-black text-stone-400 mt-2 block tracking-tighter text-stone-400">Sek</label>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-3">
+                    <button onclick="submitManualTime()" class="w-full bg-rose-500 text-white py-4 rounded-2xl font-bold shadow-lg shadow-rose-100 active:scale-95 transition-transform text-white">Speichern</button>
+                    <button onclick="closeManualModal()" class="w-full text-stone-400 py-2 text-sm font-bold text-stone-400">Abbrechen</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Projekt Modal -->
         <div id="modal-project" class="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
             <div class="bg-white w-full max-w-xs rounded-[2.5rem] p-8 shadow-2xl animate-in">
-                <h3 class="text-xl font-extrabold mb-6 text-center">Neues Projekt</h3>
-                <input type="text" id="project-name-input" onkeydown="if(event.key === 'Enter') submitNewProject()" placeholder="Name des Projekts..." class="w-full text-lg font-bold bg-stone-50 border-2 border-transparent focus:border-rose-300 rounded-2xl px-6 py-4 outline-none mb-6">
-                <button onclick="submitNewProject()" class="w-full bg-rose-500 text-white py-4 rounded-2xl font-bold shadow-lg shadow-rose-100 active:scale-95 transition-transform">Erstellen</button>
-                <button onclick="closeProjectModal()" class="w-full text-stone-400 py-2 text-sm font-bold mt-2">Abbrechen</button>
+                <h3 class="text-xl font-extrabold mb-6 text-center text-stone-900">Neues Projekt</h3>
+                <input type="text" id="project-name-input" placeholder="Projektname..." class="w-full text-lg font-bold bg-stone-50 border-2 border-transparent focus:border-rose-300 focus:bg-white rounded-2xl px-6 py-4 outline-none mb-6 transition-all">
+                <div class="flex flex-col gap-3">
+                    <button onclick="submitNewProject()" class="w-full bg-rose-500 text-white py-4 rounded-2xl font-bold shadow-lg shadow-rose-100 active:scale-95 transition-transform text-white">Erstellen</button>
+                    <button onclick="closeProjectModal()" class="w-full text-stone-400 py-2 text-sm font-bold text-stone-400">Abbrechen</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Import/Export Modal -->
+        <div id="modal-data-io" class="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+            <div class="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-in">
+                <h3 id="io-title" class="text-xl font-extrabold mb-4 text-center text-stone-900">Daten</h3>
+                <textarea id="io-textarea" class="w-full h-48 bg-stone-50 border-2 border-stone-100 rounded-2xl p-4 font-mono text-[10px] outline-none focus:border-rose-300 transition-all mb-4"></textarea>
+                <div id="io-msg" class="text-center text-xs font-bold text-green-600 mb-4 hidden">Erfolgreich! ✅</div>
+                <div class="flex flex-col gap-3">
+                    <button id="io-primary-btn" class="w-full bg-rose-500 text-white py-4 rounded-2xl font-bold shadow-lg shadow-rose-100 active:scale-95 transition-transform text-white">Aktion</button>
+                    <button onclick="closeIoModal()" class="w-full text-stone-400 py-2 text-sm font-bold text-stone-400">Schließen</button>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        // --- DEINE SUPABASE DATEN ---
-        const SUPABASE_URL = 'https://ocerasjfvffomatxhkoz.supabase.co'; 
-        const SUPABASE_KEY = 'sb_publishable_esk_zjcs2rWt1Ch46IIg-w__J3ES_zh';
-        // ----------------------------
-
-        const { createClient } = supabase;
-        const _supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-        let projects = [];
-        let sessions = [];
-        let focusedProjectId = null;
+        // State Management
+        let projects = JSON.parse(localStorage.getItem('crochet_projects') || '[]');
+        let sessions = JSON.parse(localStorage.getItem('crochet_sessions') || '[]');
+        let focusedProjectId = localStorage.getItem('crochet_focused_id') ? parseInt(localStorage.getItem('crochet_focused_id')) : (projects[0]?.id || null);
+        
         let activeTimerProjectId = null;
         let timerSeconds = 0;
         let isTimerRunning = false;
         let timerInterval = null;
         let lastTickTimestamp = null;
+        let targetManualProjectId = null;
+        let isEditingTotal = false;
 
-        async function init() {
-            await fetchAllData();
+        function init() {
+            renderProjects();
             lucide.createIcons();
+            
+            // Enter-Taste für Projekt-Input
+            document.getElementById('project-name-input').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') submitNewProject();
+            });
         }
 
-        async function fetchAllData() {
-            const [projRes, sessRes] = await Promise.all([
-                _supabase.from('projects').select('*').order('created_at', { ascending: false }),
-                _supabase.from('sessions').select('*')
-            ]);
+        function saveToStorage() {
+            localStorage.setItem('crochet_projects', JSON.stringify(projects));
+            localStorage.setItem('crochet_sessions', JSON.stringify(sessions));
+            if(focusedProjectId) localStorage.setItem('crochet_focused_id', focusedProjectId);
+        }
 
-            if (projRes.error) {
-                console.error("Fehler:", projRes.error);
-                document.getElementById('status-dot').className = "w-2 h-2 rounded-full bg-red-500";
+        function setView(viewName) {
+            document.getElementById('view-projects').classList.toggle('hidden', viewName !== 'projects');
+            document.getElementById('view-stats').classList.toggle('hidden', viewName !== 'stats');
+            
+            const btnProj = document.getElementById('btn-projects');
+            const btnStats = document.getElementById('btn-stats');
+            
+            if(viewName === 'projects') {
+                btnProj.classList.add('bg-rose-100', 'text-rose-700');
+                btnProj.classList.remove('text-stone-400');
+                btnStats.classList.remove('bg-rose-100', 'text-rose-700');
+                btnStats.classList.add('text-stone-400');
             } else {
-                projects = projRes.data;
-                sessions = sessRes.data || [];
-                if (projects.length > 0 && !focusedProjectId) focusedProjectId = projects[0].id;
-                document.getElementById('status-dot').className = "w-2 h-2 rounded-full bg-green-500";
-                renderProjects();
+                btnStats.classList.add('bg-rose-100', 'text-rose-700');
+                btnStats.classList.remove('text-stone-400');
+                btnProj.classList.remove('bg-rose-100', 'text-rose-700');
+                btnProj.classList.add('text-stone-400');
+                renderStats();
             }
+            lucide.createIcons();
         }
 
         function formatTime(totalSeconds) {
@@ -102,37 +215,17 @@
             return `${h}h ${m}m ${s}s`;
         }
 
-        async function submitNewProject() {
-            const nameInput = document.getElementById('project-name-input');
-            const name = nameInput.value.trim();
-            if (!name) return;
-            const { data, error } = await _supabase.from('projects').insert([{ name, status: 'aktiv', note: '' }]).select();
-            if (!error && data) {
-                focusedProjectId = data[0].id;
-                nameInput.value = '';
-                closeProjectModal();
-                await fetchAllData();
+        function focusProject(id) {
+            if (activeTimerProjectId && activeTimerProjectId !== id) {
+                if(!confirm("Laufenden Timer pausieren?")) return;
+                stopTimer();
             }
+            focusedProjectId = id;
+            saveToStorage();
+            renderProjects();
         }
 
-        async function updateNoteCloud(id, note) {
-            await _supabase.from('projects').update({ note }).eq('id', id);
-            projects = projects.map(p => p.id === id ? {...p, note} : p);
-        }
-
-        async function toggleStatusCloud(id, currentStatus) {
-            const newStatus = currentStatus === 'aktiv' ? 'abgeschlossen' : 'aktiv';
-            await _supabase.from('projects').update({ status: newStatus }).eq('id', id);
-            await fetchAllData();
-        }
-
-        async function deleteProjectCloud(id) {
-            if (!confirm("Projekt wirklich löschen?")) return;
-            await _supabase.from('projects').delete().eq('id', id);
-            if (focusedProjectId === id) focusedProjectId = null;
-            await fetchAllData();
-        }
-
+        // --- Timer Funktionen ---
         function startTimer(id) {
             activeTimerProjectId = id;
             isTimerRunning = true;
@@ -141,97 +234,132 @@
                 timerInterval = setInterval(() => {
                     if (isTimerRunning) {
                         const now = Date.now();
-                        timerSeconds += Math.round((now - lastTickTimestamp) / 1000);
-                        lastTickTimestamp = now;
-                        const display = document.getElementById(`focus-timer-display`);
-                        if (display) display.innerText = formatTime(timerSeconds);
+                        const delta = Math.round((now - lastTickTimestamp) / 1000);
+                        if (delta >= 1) {
+                            timerSeconds += delta;
+                            lastTickTimestamp = now;
+                            const display = document.getElementById(`focus-timer-display`);
+                            if (display) display.innerText = formatTime(timerSeconds);
+                        }
                     }
                 }, 1000);
             }
             renderProjects();
         }
 
-        async function saveTimer() {
-            if (timerSeconds > 0) {
-                await _supabase.from('sessions').insert([{ project_id: activeTimerProjectId, seconds: timerSeconds }]);
-            }
+        function togglePause() {
+            isTimerRunning = !isTimerRunning;
+            if (isTimerRunning) lastTickTimestamp = Date.now();
+            renderProjects();
+        }
+
+        function saveTimer() {
+            if (timerSeconds > 0) logSession(activeTimerProjectId, timerSeconds);
+            stopTimer();
+        }
+
+        function stopTimer() {
             clearInterval(timerInterval);
             timerInterval = null;
             activeTimerProjectId = null;
             isTimerRunning = false;
             timerSeconds = 0;
-            await fetchAllData();
+            renderProjects();
         }
 
-        function handleNoteKeydown(event, id) {
-            if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                event.target.blur();
-                updateNoteCloud(id, event.target.value);
-            }
+        function logSession(projectId, seconds) {
+            sessions.push({
+                id: Date.now(),
+                projectId: projectId,
+                seconds: seconds,
+                date: new Date().toISOString().split('T')[0]
+            });
+            saveToStorage();
+            renderProjects();
         }
 
-        function autoResizeTextarea(textarea) {
-            textarea.style.height = 'auto';
-            textarea.style.height = textarea.scrollHeight + 'px';
-        }
-
+        // --- UI Rendering ---
         function renderProjects() {
             const activeArea = document.getElementById('active-focus-area');
             const compactList = document.getElementById('project-list-compact');
-            activeArea.innerHTML = ''; compactList.innerHTML = '';
+            
+            activeArea.innerHTML = '';
+            compactList.innerHTML = '';
 
             if (projects.length === 0) {
-                activeArea.innerHTML = `<div class="bg-white border-2 border-dashed border-stone-200 rounded-[2.5rem] p-10 text-center text-stone-400 font-bold">Keine Projekte in der Cloud.</div>`;
+                activeArea.innerHTML = `
+                    <div class="bg-white border-2 border-dashed border-stone-200 rounded-[2.5rem] p-10 text-center text-stone-400">
+                        <p class="font-bold">Bereit für dein erstes Projekt?</p>
+                        <p class="text-xs mt-2">Klicke auf "Neu", um anzufangen.</p>
+                    </div>`;
                 return;
             }
 
             const focusProject = projects.find(p => p.id === focusedProjectId) || projects[0];
             focusedProjectId = focusProject.id;
-            const focusTotal = sessions.filter(s => s.project_id === focusProject.id).reduce((sum, s) => sum + s.seconds, 0);
+            const focusTotal = sessions.filter(s => s.projectId === focusProject.id).reduce((sum, s) => sum + s.seconds, 0);
             const isCurrentlyTimer = activeTimerProjectId === focusProject.id;
-            
+
             activeArea.innerHTML = `
                 <div class="active-project-card rounded-[2.5rem] p-8 shadow-xl shadow-rose-100 animate-in relative overflow-hidden">
                     <div class="relative z-10">
                         <div class="flex justify-between items-start mb-4">
                             <div>
                                 <h3 class="text-2xl font-black text-stone-900 leading-tight">${focusProject.name}</h3>
-                                <p class="text-[10px] font-black uppercase text-rose-400 tracking-widest mt-1">Cloud Fokus</p>
+                                <p class="text-[10px] font-black uppercase text-rose-400 tracking-widest mt-1">Aktueller Fokus</p>
                             </div>
-                            <button onclick="toggleStatusCloud('${focusProject.id}', '${focusProject.status}')" class="p-2 bg-white rounded-xl shadow-sm border border-rose-100">
+                            <button onclick="toggleStatus(${focusProject.id})" class="p-2 bg-white rounded-xl shadow-sm border border-rose-100">
                                 <i data-lucide="check-circle" class="w-5 h-5 ${focusProject.status === 'abgeschlossen' ? 'text-green-500' : 'text-stone-300'}"></i>
                             </button>
                         </div>
 
-                        <div class="mb-4">
+                        <div class="mb-6">
                              <div class="bg-stone-100/50 rounded-xl px-3 py-2 flex items-start gap-2 border border-stone-200/50 focus-within:border-rose-200 transition-all">
+                                <i data-lucide="sticky-note" class="w-3.5 h-3.5 text-stone-400 mt-1"></i>
                                 <textarea
-                                    placeholder="Notiz hinzufügen..." 
+                                    placeholder="Notiz (z.B. Nadelstärke 4mm)..." 
                                     class="bg-transparent text-xs font-semibold text-stone-600 outline-none w-full note-input py-0.5" 
                                     oninput="autoResizeTextarea(this)"
-                                    onkeydown="handleNoteKeydown(event, '${focusProject.id}')"
-                                    onchange="updateNoteCloud('${focusProject.id}', this.value)">${focusProject.note || ''}</textarea>
+                                    onchange="updateNote(${focusProject.id}, this.value)">${focusProject.note || ''}</textarea>
                             </div>
                         </div>
 
-                        <div class="flex items-center gap-3 mb-6">
-                            <div class="bg-white/80 backdrop-blur px-4 py-2 rounded-2xl border border-rose-50">
-                                <p class="text-[9px] font-bold text-stone-400 uppercase tracking-tighter">Gesamtzeit</p>
-                                <p class="font-mono font-black text-stone-800">${formatTime(focusTotal)}</p>
+                        <div class="flex items-center gap-3 mb-8">
+                            <div class="bg-white/80 backdrop-blur px-4 py-2 rounded-2xl border border-rose-50 flex items-center gap-2">
+                                <div>
+                                    <p class="text-[9px] font-bold text-stone-400 uppercase tracking-tighter">Gesamtzeit</p>
+                                    <p class="font-mono font-black text-stone-800">${formatTime(focusTotal)}</p>
+                                </div>
+                                <button onclick="openManualModal(${focusProject.id}, true)" class="ml-2 text-stone-300 hover:text-rose-500 transition-colors">
+                                    <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                </button>
                             </div>
                         </div>
 
-                        ${isCurrentlyTimer ? `
-                            <div class="bg-rose-500 rounded-3xl p-6 text-white text-center">
-                                <p id="focus-timer-display" class="text-3xl font-black font-mono mb-4">${formatTime(timerSeconds)}</p>
-                                <button onclick="saveTimer()" class="w-full bg-white text-rose-600 py-3 rounded-xl font-black">Session beenden</button>
-                            </div>
-                        ` : `
-                            <button onclick="startTimer('${focusProject.id}')" class="w-full bg-stone-900 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2">
-                                <i data-lucide="play" class="w-4 h-4"></i> Session starten
-                            </button>
-                        `}
+                        <div class="space-y-3">
+                            ${isCurrentlyTimer ? `
+                                <div class="bg-rose-500 rounded-3xl p-6 text-white shadow-lg shadow-rose-200">
+                                    <p id="focus-timer-display" class="text-4xl font-black text-center font-mono mb-6">${formatTime(timerSeconds)}</p>
+                                    <div class="flex gap-2">
+                                        <button onclick="togglePause()" class="flex-1 bg-white/20 backdrop-blur py-3 rounded-xl font-bold active:bg-white/30 transition-all">
+                                            <i data-lucide="${isTimerRunning ? 'pause' : 'play'}" class="w-5 h-5 mx-auto text-white"></i>
+                                        </button>
+                                        <button onclick="saveTimer()" class="flex-[2] bg-white text-rose-600 py-3 rounded-xl font-black shadow-sm active:scale-95 transition-transform text-rose-600">
+                                            Beenden
+                                        </button>
+                                    </div>
+                                </div>
+                            ` : `
+                                <div class="flex gap-2">
+                                    <button onclick="startTimer(${focusProject.id})" class="flex-[2] bg-stone-900 text-white py-5 rounded-[1.5rem] font-black text-lg flex items-center justify-center gap-3 active:scale-95 transition-transform shadow-lg shadow-stone-200 text-white">
+                                        <i data-lucide="play" class="w-5 h-5 fill-current"></i> Starten
+                                    </button>
+                                    <button onclick="openManualModal(${focusProject.id})" class="flex-1 bg-white border-2 border-stone-100 text-stone-600 py-5 rounded-[1.5rem] font-bold flex items-center justify-center active:bg-stone-50 transition-colors text-stone-600">
+                                        <i data-lucide="plus" class="w-6 h-6"></i>
+                                    </button>
+                                </div>
+                            `}
+                        </div>
                     </div>
                 </div>
             `;
@@ -241,23 +369,178 @@
 
             projects.forEach(p => {
                 if (p.id === focusedProjectId) return;
-                const projTotal = sessions.filter(s => s.project_id === p.id).reduce((sum, s) => sum + s.seconds, 0);
+                const projectTotal = sessions.filter(s => s.projectId === p.id).reduce((sum, s) => sum + s.seconds, 0);
                 const item = document.createElement('div');
-                item.className = `flex items-center justify-between bg-white p-4 rounded-2xl border border-stone-100 ${p.status === 'abgeschlossen' ? 'opacity-50' : ''}`;
+                item.className = `flex items-center justify-between bg-white p-4 rounded-2xl border border-stone-100 active:border-rose-200 transition-all ${p.status === 'abgeschlossen' ? 'opacity-50' : ''}`;
+                
                 item.innerHTML = `
-                    <div onclick="focusedProjectId='${p.id}'; renderProjects();" class="flex-1 cursor-pointer">
-                        <h4 class="font-bold text-stone-800">${p.name}</h4>
-                        <p class="text-[10px] text-stone-400 font-mono">${formatTime(projTotal)}</p>
+                    <div onclick="focusProject(${p.id})" class="flex-1 cursor-pointer">
+                        <h4 class="font-bold text-stone-800 leading-tight text-stone-800">${p.name}</h4>
+                        <p class="text-[10px] font-mono font-bold text-stone-400 text-stone-400">${formatTime(projectTotal)}</p>
                     </div>
-                    <button onclick="deleteProjectCloud('${p.id}')" class="p-2 text-stone-200"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    <button onclick="deleteProject(${p.id})" class="p-2 text-stone-200 hover:text-red-400 transition-colors text-stone-200">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
                 `;
                 compactList.appendChild(item);
             });
+
             lucide.createIcons();
         }
 
-        function openProjectModal() { document.getElementById('modal-project').classList.remove('hidden'); }
-        function closeProjectModal() { document.getElementById('modal-project').classList.add('hidden'); }
+        // --- Logik Funktionen ---
+        function updateNote(id, note) {
+            projects = projects.map(p => p.id === id ? {...p, note: note} : p);
+            saveToStorage();
+        }
+
+        function autoResizeTextarea(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = textarea.scrollHeight + 'px';
+        }
+
+        function openProjectModal() {
+            document.getElementById('modal-project').classList.remove('hidden');
+            document.getElementById('project-name-input').focus();
+        }
+
+        function closeProjectModal() {
+            document.getElementById('modal-project').classList.add('hidden');
+            document.getElementById('project-name-input').value = '';
+        }
+
+        function submitNewProject() {
+            const name = document.getElementById('project-name-input').value.trim();
+            if (!name) return;
+            const newId = Date.now();
+            projects.push({ id: newId, name: name, status: 'aktiv', note: '' });
+            focusedProjectId = newId;
+            saveToStorage();
+            closeProjectModal();
+            renderProjects();
+        }
+
+        function openManualModal(id, editMode = false) {
+            targetManualProjectId = id;
+            isEditingTotal = editMode;
+            const project = projects.find(p => p.id === id);
+            document.getElementById('manual-project-name').innerText = project.name;
+            document.getElementById('manual-modal-title').innerText = editMode ? 'Zeit korrigieren' : 'Zeit hinzufügen';
+            
+            if (editMode) {
+                const total = sessions.filter(s => s.projectId === id).reduce((sum, s) => sum + s.seconds, 0);
+                document.getElementById('manual-h').value = Math.floor(total / 3600);
+                document.getElementById('manual-m').value = Math.floor((total % 3600) / 60);
+                document.getElementById('manual-s').value = total % 60;
+            } else {
+                document.getElementById('manual-h').value = '';
+                document.getElementById('manual-m').value = '';
+                document.getElementById('manual-s').value = '';
+            }
+            document.getElementById('modal-manual-time').classList.remove('hidden');
+        }
+
+        function closeManualModal() {
+            document.getElementById('modal-manual-time').classList.add('hidden');
+        }
+
+        function submitManualTime() {
+            const h = parseInt(document.getElementById('manual-h').value) || 0;
+            const m = parseInt(document.getElementById('manual-m').value) || 0;
+            const s = parseInt(document.getElementById('manual-s').value) || 0;
+            const totalSeconds = (h * 3600) + (m * 60) + s;
+            
+            if (isEditingTotal) {
+                sessions = sessions.filter(s => s.projectId !== targetManualProjectId);
+                if (totalSeconds > 0) logSession(targetManualProjectId, totalSeconds);
+            } else if (totalSeconds > 0) {
+                logSession(targetManualProjectId, totalSeconds);
+            }
+            closeManualModal();
+            renderProjects();
+        }
+
+        function toggleStatus(id) {
+            projects = projects.map(p => p.id === id ? {...p, status: p.status === 'aktiv' ? 'abgeschlossen' : 'aktiv'} : p);
+            saveToStorage();
+            renderProjects();
+        }
+
+        function deleteProject(id) {
+            if (!confirm("Projekt löschen?")) return;
+            projects = projects.filter(p => p.id !== id);
+            sessions = sessions.filter(s => s.projectId !== id);
+            if (focusedProjectId === id) focusedProjectId = projects[0]?.id || null;
+            saveToStorage();
+            renderProjects();
+        }
+
+        function exportData() {
+            const data = JSON.stringify({ projects, sessions });
+            document.getElementById('io-textarea').value = data;
+            document.getElementById('io-title').innerText = "Export-Code";
+            document.getElementById('io-primary-btn').innerText = "Kopieren";
+            document.getElementById('io-primary-btn').onclick = () => {
+                const area = document.getElementById('io-textarea');
+                area.select();
+                document.execCommand('copy');
+                document.getElementById('io-msg').classList.remove('hidden');
+                setTimeout(() => document.getElementById('io-msg').classList.add('hidden'), 2000);
+            };
+            document.getElementById('modal-data-io').classList.remove('hidden');
+        }
+
+        function importData() {
+            document.getElementById('io-textarea').value = "";
+            document.getElementById('io-title').innerText = "Daten importieren";
+            document.getElementById('io-primary-btn').innerText = "Bestätigen";
+            document.getElementById('io-primary-btn').onclick = () => {
+                try {
+                    const data = JSON.parse(document.getElementById('io-textarea').value);
+                    if (data.projects) {
+                        projects = data.projects;
+                        sessions = data.sessions || [];
+                        saveToStorage();
+                        location.reload();
+                    }
+                } catch(e) { alert("Fehler beim Import!"); }
+            };
+            document.getElementById('modal-data-io').classList.remove('hidden');
+        }
+
+        function closeIoModal() { document.getElementById('modal-data-io').classList.add('hidden'); }
+
+        function renderStats() {
+            const daily = {}; let total = 0;
+            sessions.forEach(s => { daily[s.date] = (daily[s.date] || 0) + s.seconds; total += s.seconds; });
+            document.getElementById('total-time-display').innerText = formatTime(total);
+            
+            const statsContainer = document.getElementById('daily-stats');
+            statsContainer.innerHTML = '';
+            const sortedDates = Object.keys(daily).sort((a,b) => b.localeCompare(a)).slice(0, 7);
+            
+            if (sortedDates.length === 0) {
+                statsContainer.innerHTML = '<p class="text-center text-stone-300 text-xs py-4 text-stone-300">Noch keine Daten vorhanden.</p>';
+                return;
+            }
+
+            sortedDates.forEach(date => {
+                const sec = daily[date];
+                const dayName = new Date(date).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit' });
+                const row = document.createElement('div');
+                row.className = 'space-y-1';
+                row.innerHTML = `
+                    <div class="flex justify-between items-center text-[10px] font-black uppercase text-stone-400">
+                        <span>${dayName}</span>
+                        <span class="text-stone-800">${formatTime(sec)}</span>
+                    </div>
+                    <div class="w-full h-1.5 bg-stone-50 rounded-full overflow-hidden">
+                        <div class="h-full bg-rose-400 rounded-full" style="width: ${Math.min((sec/7200)*100, 100)}%"></div>
+                    </div>
+                `;
+                statsContainer.appendChild(row);
+            });
+        }
 
         window.onload = init;
     </script>
