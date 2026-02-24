@@ -1,0 +1,49 @@
+/* Google Fonts Import */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+
+/* Grundlegendes Styling */
+body { 
+    font-family: 'Inter', sans-serif; 
+    -webkit-tap-highlight-color: transparent; 
+}
+
+/* Animationen */
+.animate-in { 
+    animation: fadeIn 0.3s ease-out; 
+}
+
+@keyframes fadeIn { 
+    from { 
+        opacity: 0; 
+        transform: translateY(10px); 
+    } 
+    to { 
+        opacity: 1; 
+        transform: translateY(0); 
+    } 
+}
+
+/* Aktives Projekt Styling */
+.active-project-card {
+    background: linear-gradient(145deg, #ffffff, #fff5f5);
+    border: 2px solid #fecaca;
+}
+
+/* Input Styling - verhindert Spinner bei Number Inputs */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* Notiz-Input Styling */
+.note-input:focus {
+    background-color: white;
+}
+
+/* Verstecke Scrollbar für die Textarea, während sie wächst */
+.note-input {
+    resize: none;
+    overflow: hidden;
+    min-height: 24px;
+}
