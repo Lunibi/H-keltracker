@@ -117,7 +117,7 @@ function renderMonthCalendar(container, dailyData) {
                 <div class="w-full h-2 bg-stone-100 rounded-full overflow-hidden mb-1">
                     <div class="h-full bg-rose-400 rounded-full" style="width: ${barHeight}%"></div>
                 </div>
-                <div class="text-[8px] font-bold text-rose-600">${hours > 0 ? hours + 'h' : ''} ${minutes}m</div>
+                <div class="text-[7px] font-bold text-rose-600 whitespace-nowrap">${hours > 0 ? hours + 'h' : ''} ${minutes}m</div>
             `;
         } else {
             dayCell.className += ' bg-stone-50 text-stone-400 cursor-default';
