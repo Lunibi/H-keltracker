@@ -35,11 +35,19 @@ function renderProjects() {
     focusArea.innerHTML = '';
     compactList.innerHTML = '';
     
-    // Sortiere Projekte: Aktive zuerst, dann abgeschlossene
+    // Sortiere Projekte: Aktive zuerst, dann abgeschlossene, dann abgebrochene
+    // Innerhalb jeder Gruppe: Neueste zuerst (höhere ID = neuer)
     const sortedProjects = [...projects].sort((a, b) => {
-        if (a.status === 'aktiv' && b.status !== 'aktiv') return -1;
-        if (a.status !== 'aktiv' && b.status === 'aktiv') return 1;
-        return 0;
+        // Status-Priorität: aktiv=0, abgeschlossen=1, abgebrochen=2
+        const statusOrder = { 'aktiv': 0, 'abgeschlossen': 1, 'abgebrochen': 2 };
+        const aOrder = statusOrder[a.status] || 0;
+        const bOrder = statusOrder[b.status] || 0;
+        
+        // Erst nach Status sortieren
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        
+        // Innerhalb gleicher Status-Gruppe: Neueste zuerst (ID absteigend)
+        return b.id - a.id;
     });
     
     // Rendere fokussiertes Projekt oben
@@ -68,8 +76,26 @@ function createFocusedProjectCard(project) {
     const totalTime = getTotalTime(project.id);
     const isRunning = activeTimerProjectId === project.id;
     
+    // Status-abhängige Styling
+    let cardBg = 'active-project-card'; // Standard für aktiv
+    let statusIcon = 'circle';
+    let statusColor = 'text-stone-300';
+    let statusLabel = 'Aktiv';
+    
+    if (project.status === 'abgeschlossen') {
+        cardBg = 'bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-200';
+        statusIcon = 'check-circle';
+        statusColor = 'text-green-500';
+        statusLabel = 'Abgeschlossen';
+    } else if (project.status === 'abgebrochen') {
+        cardBg = 'bg-gradient-to-br from-stone-100 to-stone-200 border-2 border-stone-300';
+        statusIcon = 'x-circle';
+        statusColor = 'text-stone-500';
+        statusLabel = 'Abgebrochen';
+    }
+    
     const card = document.createElement('div');
-    card.className = 'active-project-card rounded-[2rem] p-6 shadow-xl space-y-4';
+    card.className = `${cardBg} rounded-[2rem] p-6 shadow-xl space-y-4`;
     
     card.innerHTML = `
         <div class="flex justify-between items-start">
@@ -77,9 +103,14 @@ function createFocusedProjectCard(project) {
                 <h3 class="text-xl font-black mb-1">${project.name}</h3>
                 <p class="text-stone-400 text-[10px] uppercase font-black tracking-widest">Fokus-Projekt</p>
             </div>
-            <button onclick="openEditProjectModal(${project.id})" class="text-stone-400 hover:text-rose-500 p-2">
-                <i data-lucide="edit-3" class="w-4 h-4"></i>
-            </button>
+            <div class="flex gap-1">
+                <button onclick="toggleStatus(${project.id})" class="p-2 bg-white rounded-xl shadow-sm border border-rose-100" title="Status wechseln: ${statusLabel}">
+                    <i data-lucide="${statusIcon}" class="w-5 h-5 ${statusColor}"></i>
+                </button>
+                <button onclick="openEditProjectModal(${project.id})" class="text-stone-400 hover:text-rose-500 p-2" title="Projekt umbenennen">
+                    <i data-lucide="edit-3" class="w-4 h-4"></i>
+                </button>
+            </div>
         </div>
         
         <div class="bg-white/50 rounded-2xl p-4 text-center">
@@ -131,18 +162,31 @@ function createCompactProjectCard(project) {
     const totalTime = getTotalTime(project.id);
     const isFocused = project.id === focusedProjectId;
     
-    const card = document.createElement('div');
-    card.className = `bg-white rounded-2xl p-4 border-2 ${isFocused ? 'border-rose-200' : 'border-stone-100'} space-y-3`;
+    // Status-abhängige Styling
+    let cardBg = 'bg-white';
+    let borderColor = isFocused ? 'border-rose-200' : 'border-stone-100';
+    let statusIcon = 'circle';
+    let statusColor = 'text-stone-400';
     
-    const statusIcon = project.status === 'aktiv' 
-        ? '<i data-lucide="circle" class="w-3 h-3 text-green-500"></i>' 
-        : '<i data-lucide="check-circle" class="w-3 h-3 text-stone-300"></i>';
+    if (project.status === 'abgeschlossen') {
+        cardBg = 'bg-gradient-to-br from-green-50 to-white';
+        borderColor = 'border-green-200';
+        statusIcon = 'check-circle';
+        statusColor = 'text-green-500';
+    } else if (project.status === 'abgebrochen') {
+        cardBg = 'bg-gradient-to-br from-stone-100 to-white';
+        borderColor = 'border-stone-300';
+        statusIcon = 'x-circle';
+        statusColor = 'text-stone-500';
+    }
+    
+    const card = document.createElement('div');
+    card.className = `${cardBg} rounded-2xl p-4 border-2 ${borderColor} space-y-3`;
     
     card.innerHTML = `
         <div class="flex justify-between items-start">
             <div class="flex-1" onclick="setFocus(${project.id})" style="cursor: pointer;">
                 <div class="flex items-center gap-2 mb-1">
-                    ${statusIcon}
                     <h4 class="font-bold text-stone-800">${project.name}</h4>
                 </div>
                 <p class="text-xs text-stone-500">${formatTime(totalTime)}</p>
@@ -151,8 +195,8 @@ function createCompactProjectCard(project) {
                 <button onclick="openManualModal(${project.id}, true)" class="text-stone-400 hover:text-rose-500 p-2" title="Zeit korrigieren">
                     <i data-lucide="clock" class="w-4 h-4"></i>
                 </button>
-                <button onclick="toggleStatus(${project.id})" class="text-stone-400 hover:text-rose-500 p-2" title="Status ändern">
-                    <i data-lucide="check" class="w-4 h-4"></i>
+                <button onclick="toggleStatus(${project.id})" class="p-2" title="Status ändern">
+                    <i data-lucide="${statusIcon}" class="w-4 h-4 ${statusColor}"></i>
                 </button>
                 <button onclick="deleteProject(${project.id})" class="text-stone-400 hover:text-red-500 p-2" title="Löschen">
                     <i data-lucide="trash-2" class="w-4 h-4"></i>
